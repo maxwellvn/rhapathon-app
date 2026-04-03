@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_config.dart';
+
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLogin;
   const LoginScreen({super.key, required this.onLogin});
@@ -15,9 +17,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscure  = true;
   String? _error;
 
-  // Change this to whatever password you want
-  static const String _appPassword = 'rhapathon2026';
-
   Future<void> _login() async {
     final input = _passController.text.trim();
     if (input.isEmpty) {
@@ -25,11 +24,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    if (AppConfig.accessPassword.isEmpty) {
+      setState(() => _error = 'App is not configured (missing build secrets).');
+      return;
+    }
+
     setState(() { _loading = true; _error = null; });
 
     await Future.delayed(const Duration(milliseconds: 300)); // brief visual feedback
 
-    if (input != _appPassword) {
+    if (input != AppConfig.accessPassword) {
       setState(() { _error = 'Incorrect password'; _loading = false; });
       return;
     }

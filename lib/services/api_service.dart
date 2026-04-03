@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
+
 class ApiService {
-  static const String baseUrl   = 'https://liveaudience.rhapathon.org';
-  static const String apiKey    = 'rhapaton_search_2026';
+  static const String baseUrl = 'https://liveaudience.rhapathon.org';
+
+  static String get apiKey => AppConfig.apiKey;
 
   // KingsChat OAuth — implicit flow, no client secret
-  static const String kcClientId    = '619b30ea-a682-47fb-b90f-5b8e780b89ca';
+  static String get kcClientId => AppConfig.kcClientId;
   static const String kcCallbackUrl = '$baseUrl/api/kc_mobile_callback.php';
 
   /// Build the KingsChat auth URL directly — no server round-trip needed.
@@ -66,6 +69,9 @@ class ApiService {
     int limit = 50,
     int offset = 0,
   }) async {
+    if (apiKey.isEmpty) {
+      throw Exception('Search is not configured.');
+    }
     final uri = Uri.parse('$baseUrl/api/search_registrations.php').replace(
       queryParameters: {
         'q': query,
@@ -79,6 +85,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getDetail(String id) async {
+    if (apiKey.isEmpty) {
+      throw Exception('Search is not configured.');
+    }
     final uri = Uri.parse('$baseUrl/api/search_registrations.php').replace(
       queryParameters: {'action': 'detail', 'id': id, 'api_key': apiKey},
     );

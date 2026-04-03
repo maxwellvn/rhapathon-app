@@ -25,12 +25,14 @@ class _DetailScreenState extends State<DetailScreen> {
   Future<void> _load() async {
     try {
       final res = await ApiService.getDetail(widget.id);
+      if (!mounted) return;
       if (res['success'] == true) {
         setState(() { _data = res['data'] as Map<String, dynamic>; _loading = false; });
       } else {
         setState(() { _error = res['message'] ?? 'Not found'; _loading = false; });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() { _error = e.toString(); _loading = false; });
     }
   }
@@ -257,9 +259,15 @@ class _Section extends StatelessWidget {
   final List<Widget> children;
   const _Section({required this.title, required this.children});
 
+  static bool _includeChild(Widget w) {
+    if (w is! SizedBox) return true;
+    final h = w.height;
+    return h == null || h != 0;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visible = children.where((w) => w is! SizedBox || (w as SizedBox).height != 0).toList();
+    final visible = children.where(_includeChild).toList();
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

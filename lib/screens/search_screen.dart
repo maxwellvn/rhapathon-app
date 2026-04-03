@@ -30,9 +30,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
   static const int _pageSize = 50;
 
+  void _onSearchTextChanged() => setState(() {});
+
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onSearchTextChanged);
     _loadUser();
     _search('');
     _scrollController.addListener(_onScroll);
@@ -41,6 +44,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _controller.removeListener(_onSearchTextChanged);
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();

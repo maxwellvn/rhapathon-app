@@ -12,6 +12,14 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment
+.env
+.env.*
+!.env.example
+
+# Local Flutter --dart-define-from-file (real keys; never commit)
+secrets.json
+
 # IntelliJ related
 *.iml
 *.ipr

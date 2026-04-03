@@ -65,6 +65,7 @@ class _AppRootState extends State<AppRoot> {
 
   Future<void> _checkAuth() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _loggedIn = prefs.getBool('logged_in') == true;
       _loading  = false;
