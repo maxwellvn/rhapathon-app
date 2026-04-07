@@ -1,7 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../services/api_service.dart';
+import '../services/contact_log_store.dart';
+import '../widgets/search/attendee_search_bar.dart';
+import '../widgets/search/search_result_card.dart';
 import 'detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -28,6 +33,8 @@ class _SearchScreenState extends State<SearchScreen> {
   String _userName = '';
   String _userPicture = '';
 
+  Map<String, ContactRecord> _contactById = {};
+
   static const int _pageSize = 50;
 
   void _onSearchTextChanged() => setState(() {});
@@ -39,6 +46,23 @@ class _SearchScreenState extends State<SearchScreen> {
     _loadUser();
     _search('');
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _refreshOutreachForCurrentResults({required bool reset}) async {
+    final ids = _results.map((e) => e['id'] as String?).whereType<String>().toList();
+    if (ids.isEmpty) {
+      if (mounted && reset) setState(() => _contactById = {});
+      return;
+    }
+    final batch = await ContactLogStore.fetchBatch(ids);
+    if (!mounted) return;
+    setState(() {
+      if (reset) {
+        _contactById = Map<String, ContactRecord>.from(batch);
+      } else {
+        _contactById = {..._contactById, ...batch};
+      }
+    });
   }
 
   @override
@@ -53,7 +77,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _loadUser() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userName    = prefs.getString('kc_user_name') ?? '';
+      _userName = prefs.getString('kc_user_name') ?? '';
       _userPicture = prefs.getString('kc_user_picture') ?? '';
     });
   }
@@ -71,7 +95,10 @@ class _SearchScreenState extends State<SearchScreen> {
       _loading = reset;
       _loadingMore = !reset;
       _error = null;
-      if (reset) { _results = []; _offset = 0; }
+      if (reset) {
+        _results = [];
+        _offset = 0;
+      }
     });
 
     try {
@@ -84,14 +111,20 @@ class _SearchScreenState extends State<SearchScreen> {
         } else {
           _results = [..._results, ...rows];
         }
-        _total     = data['total'] as int? ?? 0;
-        _offset    = _results.length;
+        _total = data['total'] as int? ?? 0;
+        _offset = _results.length;
         _lastQuery = query;
       });
+      await _refreshOutreachForCurrentResults(reset: reset);
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
-      if (mounted) setState(() { _loading = false; _loadingMore = false; });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -109,8 +142,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sign out'),
-        content: const Text('Are you sure you want to sign out?'),
+        title: const Text('Sign out?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(
@@ -125,6 +157,15 @@ class _SearchScreenState extends State<SearchScreen> {
       await prefs.clear();
       widget.onLogout();
     }
+  }
+
+  void _openDetail(Map<String, dynamic> item) {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetailScreen(id: item['id'] as String),
+      ),
+    ).then((_) => _refreshOutreachForCurrentResults(reset: true));
   }
 
   @override
@@ -144,13 +185,15 @@ class _SearchScreenState extends State<SearchScreen> {
                     CircleAvatar(
                       radius: 16,
                       backgroundColor: const Color(0xFFD4AF37),
-                      backgroundImage: _userPicture.isNotEmpty
-                          ? NetworkImage(_userPicture)
-                          : null,
+                      backgroundImage: _userPicture.isNotEmpty ? NetworkImage(_userPicture) : null,
                       child: _userPicture.isEmpty
                           ? Text(
                               _userName.isNotEmpty ? _userName[0].toUpperCase() : '?',
-                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
                             )
                           : null,
                     ),
@@ -163,37 +206,10 @@ class _SearchScreenState extends State<SearchScreen> {
       ),
       body: Column(
         children: [
-          // Search bar
-          Container(
-            color: const Color(0xFF1A1A2E),
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: TextField(
-              controller: _controller,
-              onChanged: _onQueryChanged,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Search by name, email, phone, KingsChat...',
-                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFFD4AF37)),
-                suffixIcon: _controller.text.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear, color: Colors.white.withValues(alpha: 0.6)),
-                        onPressed: () {
-                          _controller.clear();
-                          _onQueryChanged('');
-                        },
-                      )
-                    : null,
-                fillColor: Colors.white.withValues(alpha: 0.1),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFD4AF37), width: 2),
-                ),
-              ),
-            ),
+          AttendeeSearchBar(
+            controller: _controller,
+            onQueryChanged: _onQueryChanged,
           ),
-
-          // Results count
           if (!_loading)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -208,15 +224,11 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
             ),
-
-          // Error
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(_error!, style: const TextStyle(color: Colors.red)),
             ),
-
-          // Results list
           Expanded(
             child: _loading
                 ? const Center(
@@ -243,7 +255,13 @@ class _SearchScreenState extends State<SearchScreen> {
                         onRefresh: () => _search(_lastQuery),
                         child: ListView.builder(
                           controller: _scrollController,
-                          padding: EdgeInsets.fromLTRB(12, 4, 12, MediaQuery.of(context).padding.bottom + 4),
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            4,
+                            12,
+                            MediaQuery.of(context).padding.bottom + 4,
+                          ),
+                          physics: const AlwaysScrollableScrollPhysics(),
                           itemCount: _results.length + (_loadingMore ? 1 : 0),
                           itemBuilder: (ctx, i) {
                             if (i == _results.length) {
@@ -252,8 +270,10 @@ class _SearchScreenState extends State<SearchScreen> {
                                 child: Center(child: CircularProgressIndicator()),
                               );
                             }
-                            return _ResultCard(
+                            final id = _results[i]['id'] as String? ?? '';
+                            return SearchResultCard(
                               item: _results[i],
+                              contact: id.isEmpty ? null : _contactById[id],
                               onTap: () => _openDetail(_results[i]),
                             );
                           },
@@ -261,124 +281,6 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
           ),
         ],
-      ),
-    );
-  }
-
-  void _openDetail(Map<String, dynamic> item) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DetailScreen(id: item['id'] as String),
-      ),
-    );
-  }
-}
-
-class _ResultCard extends StatelessWidget {
-  final Map<String, dynamic> item;
-  final VoidCallback onTap;
-
-  const _ResultCard({required this.item, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final title     = item['title'] as String? ?? '';
-    final firstName = item['first_name'] as String? ?? '';
-    final lastName  = item['last_name'] as String? ?? '';
-    final fullName  = '$title $firstName $lastName'.trim();
-    final email     = item['email'] as String? ?? '';
-    final phone     = item['phone'] as String? ?? '';
-    final kcUser    = item['kingschat_username'] as String? ?? '';
-    final zone      = item['zone_name'] as String? ?? '';
-    final church    = item['church_name'] as String? ?? '';
-    final lang      = item['language_preference'] as String? ?? '';
-
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade200),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            children: [
-              // Avatar
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: const Color(0xFF1A1A2E),
-                child: Text(
-                  firstName.isNotEmpty ? firstName[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    color: Color(0xFFD4AF37),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      fullName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                        color: Color(0xFF1A1A2E),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    if (email.isNotEmpty)
-                      Text(email,
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                    if (phone.isNotEmpty)
-                      Text(phone,
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                    if (kcUser.isNotEmpty)
-                      Text(kcUser,
-                          style: const TextStyle(
-                              color: Color(0xFFD4AF37), fontSize: 12, fontWeight: FontWeight.w500)),
-                    if (zone.isNotEmpty || church.isNotEmpty)
-                      Text(
-                        [zone, church].where((s) => s.isNotEmpty).join(' · '),
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                  ],
-                ),
-              ),
-              // Language badge + arrow
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  if (lang.isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1A1A2E).withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        lang.toUpperCase(),
-                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Icon(Icons.chevron_right, color: Colors.grey.shade400),
-                ],
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

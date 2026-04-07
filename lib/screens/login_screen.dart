@@ -25,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     if (AppConfig.accessPassword.isEmpty) {
-      setState(() => _error = 'App is not configured (missing build secrets).');
+      setState(() => _error = 'Sign-in unavailable.');
       return;
     }
 

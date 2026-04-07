@@ -95,6 +95,84 @@ class ApiService {
     return _decode(res);
   }
 
+  // ─── Contact outreach (stored in liveaudience DB) ────────────────────────
+
+  /// GET one row, or null if not found / error.
+  static Future<Map<String, dynamic>?> contactOutreachGet(String registrationId) async {
+    if (apiKey.isEmpty) return null;
+    final uri = Uri.parse('$baseUrl/api/contact_outreach.php').replace(
+      queryParameters: {
+        'api_key': apiKey,
+        'action': 'get',
+        'id': registrationId,
+      },
+    );
+    final res = await http.get(uri).timeout(const Duration(seconds: 10));
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (body['success'] != true) return null;
+    final data = body['data'];
+    if (data == null) return null;
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  /// GET many rows keyed by registration id.
+  static Future<Map<String, Map<String, dynamic>>> contactOutreachBatch(
+    List<String> registrationIds,
+  ) async {
+    if (apiKey.isEmpty || registrationIds.isEmpty) return {};
+    final uri = Uri.parse('$baseUrl/api/contact_outreach.php').replace(
+      queryParameters: {
+        'api_key': apiKey,
+        'action': 'batch',
+        'ids': registrationIds.join(','),
+      },
+    );
+    final res = await http.get(uri).timeout(const Duration(seconds: 15));
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (body['success'] != true) return {};
+    final data = body['data'];
+    if (data is! Map) return {};
+    return data.map(
+      (k, v) => MapEntry(
+        k.toString(),
+        Map<String, dynamic>.from(v as Map),
+      ),
+    );
+  }
+
+  /// Upsert outreach row (same API key as search).
+  static Future<void> contactOutreachUpsert(
+    String registrationId,
+    Map<String, dynamic> payload,
+  ) async {
+    if (apiKey.isEmpty) {
+      throw Exception('Search is not configured.');
+    }
+    final uri = Uri.parse('$baseUrl/api/contact_outreach.php').replace(
+      queryParameters: {'api_key': apiKey},
+    );
+    final res = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+          body: jsonEncode({
+            'registration_id': registrationId,
+            ...payload,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    final body = res.body.trim();
+    if (!body.startsWith('{') && !body.startsWith('[')) {
+      throw Exception(
+        'HTTP ${res.statusCode}: expected JSON from contact_outreach.php (is it deployed?).',
+      );
+    }
+    final map = jsonDecode(body) as Map<String, dynamic>;
+    if (map['success'] != true) {
+      throw Exception(map['message']?.toString() ?? 'Contact outreach save failed');
+    }
+  }
+
   // ─── helper ──────────────────────────────────────────────────────────────
 
   static Map<String, dynamic> _decode(http.Response res) {
