@@ -37,6 +37,17 @@ class _SearchScreenState extends State<SearchScreen> {
 
   static const int _pageSize = 50;
 
+  /// Not reached-out first; any saved outreach ([ContactRecord.hasReachedOut]) at the bottom.
+  void _sortResultsByContactStatus() {
+    _results.sort((a, b) {
+      final idA = a['id'] as String? ?? '';
+      final idB = b['id'] as String? ?? '';
+      final reachedA = idA.isNotEmpty && (_contactById[idA]?.hasReachedOut == true) ? 1 : 0;
+      final reachedB = idB.isNotEmpty && (_contactById[idB]?.hasReachedOut == true) ? 1 : 0;
+      return reachedA.compareTo(reachedB);
+    });
+  }
+
   void _onSearchTextChanged() => setState(() {});
 
   @override
@@ -62,6 +73,7 @@ class _SearchScreenState extends State<SearchScreen> {
       } else {
         _contactById = {..._contactById, ...batch};
       }
+      _sortResultsByContactStatus();
     });
   }
 

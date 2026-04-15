@@ -13,10 +13,28 @@ class ContactRecord {
     required this.updatedAt,
   });
 
+  /// Matches [contact_outreach.php] payload: `contacted` may be bool or 0/1 from MySQL.
+  static bool _jsonBool(dynamic v) {
+    if (v == true) return true;
+    if (v == false || v == null) return false;
+    if (v is num) return v != 0;
+    final s = v.toString().trim().toLowerCase();
+    return s == '1' || s == 'true' || s == 'yes';
+  }
+
+  /// True if any outreach was logged on the server (used for search ordering and badges).
+  ///
+  /// Aligns with stored rows from `contact_outreach.php`: the contacted flag, a non-empty
+  /// outcome, or non-empty notes all mean this registration has been reached out to.
+  bool get hasReachedOut =>
+      contacted ||
+      (outcome != null && outcome!.trim().isNotEmpty) ||
+      notes.trim().isNotEmpty;
+
   factory ContactRecord.fromJson(Map<String, dynamic> j) {
     final u = j['updatedAt'] ?? j['updated_at'];
     return ContactRecord(
-      contacted: j['contacted'] == true,
+      contacted: _jsonBool(j['contacted']),
       outcome: j['outcome'] as String?,
       notes: j['notes'] as String? ?? '',
       updatedAt: DateTime.tryParse(u?.toString() ?? '') ?? DateTime.now(),

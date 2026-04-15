@@ -66,7 +66,7 @@ class SearchResultCard extends StatelessWidget {
                         color: Color(0xFF1A1A2E),
                       ),
                     ),
-                    if (contact != null && contact!.contacted) ...[
+                    if (contact != null && contact!.hasReachedOut) ...[
                       const SizedBox(height: 4),
                       Row(
                         children: [
@@ -74,7 +74,8 @@ class SearchResultCard extends StatelessWidget {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              ContactOutcomes.labelFor(contact!.outcome) ?? 'Contacted',
+                              ContactOutcomes.labelFor(contact!.outcome) ??
+                                  (contact!.notes.trim().isNotEmpty ? 'Notes saved' : 'Reached out'),
                               style: TextStyle(
                                 color: Colors.green.shade800,
                                 fontSize: 11,
