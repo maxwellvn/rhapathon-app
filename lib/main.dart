@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'screens/login_screen.dart';
 import 'screens/search_screen.dart';
 
@@ -68,7 +69,7 @@ class _AppRootState extends State<AppRoot> {
     if (!mounted) return;
     setState(() {
       _loggedIn = prefs.getBool('logged_in') == true;
-      _loading  = false;
+      _loading = false;
     });
   }
 
