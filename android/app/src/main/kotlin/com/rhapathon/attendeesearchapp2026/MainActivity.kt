@@ -1,4 +1,4 @@
-package org.rhapathon.rhapathon_search
+package com.rhapathon.attendeesearchapp2026
 
 import io.flutter.embedding.android.FlutterActivity
 
